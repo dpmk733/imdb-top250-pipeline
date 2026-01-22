@@ -1,1 +1,2 @@
-0 0 * * SUN python /app/src/etl_pipeline.py >> /app/data/logs/cron.log 2>&1
+# Runs every day at 09:00 (uses TZ environment variable inside the container)
+0 9 * * * /usr/local/bin/python /app/src/etl_pipeline.py >> /var/log/cron.log 2>&1

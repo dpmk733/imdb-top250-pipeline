@@ -1,0 +1,59 @@
+services:
+  db:
+    image: postgres:15
+    container_name: imdb_db
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-imdb}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      # runs only on FIRST init (fresh pgdata volume)
+      - ../sql_scripts/init.sql:/docker-entrypoint-initdb.d/01_init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  selenium:
+    image: selenium/standalone-chrome:latest
+    container_name: imdb_selenium
+    shm_size: 2gb
+    ports:
+      - "4444:4444"
+    environment:
+      - SE_NODE_MAX_SESSIONS=1
+
+  app:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: imdb_etl
+    depends_on:
+      db:
+        condition: service_healthy
+      selenium:
+        condition: service_started
+    env_file:
+      - ../.env
+    environment:
+      DB_HOST: ${DB_HOST:-db}
+      DB_PORT: ${DB_PORT:-5432}
+      DB_NAME: ${DB_NAME:-imdb}
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+      SELENIUM_REMOTE_URL: ${SELENIUM_REMOTE_URL:-http://selenium:4444/wd/hub}
+      TOP_N: ${TOP_N:-250}
+      CAST_TOP_N: ${CAST_TOP_N:-10}
+      PAGE_LOAD_TIMEOUT: ${PAGE_LOAD_TIMEOUT:-45}
+      WAIT_TIMEOUT: ${WAIT_TIMEOUT:-30}
+      TZ: ${TZ:-Europe/Athens}
+    volumes:
+      - ../data/logs:/app/data/logs
+    restart: unless-stopped
+
+volumes:
+  pgdata:
